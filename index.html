@@ -1,78 +1,272 @@
-<!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <title>Thread-dump-analyzer by nazoking</title>
-    <link rel="stylesheet" href="stylesheets/styles.css">
-    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-    <script src="javascripts/respond.js"></script>
-    <!--[if lt IE 9]>
-      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
-    <!--[if lt IE 8]>
-    <link rel="stylesheet" href="stylesheets/ie.css">
-    <![endif]-->
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+<textarea id="dump" style="width:100%;height:10em">
+</textarea><br />
+<button id="parse-action">parse</button>
+<input type="file" id="load-dump" value="load dump" />
+<a href="#" id="scroll-top">^^^</a>
+<pre id="parse-result">
+</pre>
 
-  </head>
-  <body>
-      <div id="header">
-        <nav>
-          <li class="fork"><a href="https://github.com/nazoking/thread-dump-analyzer">View On GitHub</a></li>
-          <li class="downloads"><a href="https://github.com/nazoking/thread-dump-analyzer/zipball/master">ZIP</a></li>
-          <li class="downloads"><a href="https://github.com/nazoking/thread-dump-analyzer/tarball/master">TAR</a></li>
-          <li class="title">DOWNLOADS</li>
-        </nav>
-      </div><!-- end header -->
+<style>
+.thread.state-RUNNABLE{ background: #eef; }
+.thread.state-BLOCKED{ background: #fee; }
+.thread.state-WAITING,
+.thread.state-TIMED_WAITING{ background: #fff8f8; }
+.thread{ border:1px solid #dff; }
+.thread.blocking{ border:2px solid #44f; }
+.threads{ margin-bottom:3em; }
+.threads .header{ background:#ffe; }
+</style>
+<script>
+$(function(){
+  $("#parse-action").click(function(){
+    parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(""));
+  });
+  $("#load-dump").on("change",function(e){
+    if(e.target.files && e.target.files[0]){
+      try{
+        var fileReader = new FileReader();
+        $("#dump").val(fileReader.readAsText(e.target.files[0]));
+      }catch(e){
+        console.log(e)
+      }
+    }
+  });
+  $("#scroll-top").click(function(){
+    $("#dump").scrollTop(0);
+  });
+});
 
-    <div class="wrapper">
 
-      <section>
-        <div id="title">
-          <h1>Thread-dump-analyzer</h1>
-          <p>thread-dump-analizer javascript</p>
-          <hr>
-          <span class="credits left">Project maintained by <a href="https://github.com/nazoking">nazoking</a></span>
-          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
-        </div>
+function LockInfo(objectId){
+  return {
+    objectId:objectId,
+    waitings:[],
+    locked:null,
+    onChange:function(){
+      if(this.locked){
+        this.locked.onLockInfoChanged(this);
+      }
+      for(var i=0;i<this.waitings.length;i++){
+        this.waitings[i].onLockInfoChanged(this);
+      }
+    },
+    addWaitings:function(thr){
+      this.waitings.push(thr);
+      this.onChange();
+    },
+    setLocked:function(thr){
+      this.locked = thr;
+      this.onChange();
+    }
+  }
+}
+function Thread(threads,threadId,titleLine){
+  var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>').append($("<span>").text(titleLine));
+  var lines = [titleLine];
+  var self = {
+     div:div,
+     threadId:threadId,
+     addState:function(state,line){
+       this.state = state;
+       lines.push(line);
+       div.find(".state").text(state+":");
+       div.addClass("state-"+state);
+     },
+     addWaiting:function(objectId,line){
+      lines.push(line);
+      div.append($('<div>').text(line));
+      div.addClass("waiting-"+objectId);
+      threads.addWaiting(objectId,this);
+     },
+     addStackTrace:function(line){
+       lines.push(line);
+     },
+     addLocked:function(objectId,line){
+      lines.push(line);
+      div.append($('<div class="locked-'+objectId+'" style="display:none"><span class="count"></span>').append($('<span>').text(line)));
+      threads.addLocked(objectId,this);
+    },
+    lines:function(){
+      var txt = div.find('.lines');
+      if(txt.length==0){
+        txt = $('<pre class="lines">').text(lines.join("\n")).hide().appendTo(div);
+      }
+      return txt;
+    },
+    onLockInfoChanged:function(lockInfo){
+      if(lockInfo.locked==this){
+        if(lockInfo.waitings.length){
+          div.find(".locked-"+lockInfo.objectId).show().find(".count").text(lockInfo.waitings.length+" waiting)");
+          threads.div.find('.waiting-'+lockInfo.objectId).hide().addClass('blocked');
+          div.addClass('blocking');
+        }
+      }else{
+        div.find(".locked-"+lockInfo.objectId).show();
+      }
+    }
+  };
+  div.data('thread',self);
+  return self;
+}
+function Threads(time,head){
+  var div = $("<div class='threads'>");
+  var lockes = {};
+  div.delegate('.thread','click',function(){
+    var thread = $(this).data('thread').lines().toggle();
+  })
+  var threadList={};
+  var threadSize=0;
+  var header = $("<div class='header'>").text(time+"====="+head);
+  div.append(header);
+  function lockOf(objectId){
+    lockes[objectId] = lockes[objectId] || LockInfo(objectId);
+    return lockes[objectId]; 
+  }
+  return {
+    div:div,
+    header:header,
+    threadSize:threadSize,
+    threadList:threadList,
+    newThread:function(threadId,titleLine){
+      var thread = Thread(this,threadId,titleLine);
+      div.append(thread.div);
+      threadList[threadId]=thread;
+      threadSize+=1;
+      return thread;
+    },
+    addWaiting:function(objectId,thread){
+      lockOf(objectId).addWaitings(thread);
+    },
+    addLocked:function(objectId,thread){
+      lockOf(objectId).setLocked(thread);
+    },
+    finish:function(){
+      var btn = $('<button>').text("show/hide blocked("+div.find('.blocked').length+")").click(function(){
+        div.find('.blocked').toggle();
+      });
+      $('<div>').text('Thread size='+threadSize).append(btn).appendTo(header);
+    }
+  };
+}
+function parser(lines,div){
+  var threadStart = /^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)/;
+  var waitingToLock = /^\s+- waiting to lock \<(0x[a-f0-9]+)\>/;
+  var locked = /^\s+- locked \<(0x[a-f0-9]+)>/;
+  var state =  /^\s+java.lang.Thread.State: ([A-Z_]+)/;
+  var stackTrace = /^\s+at [a-zA-Z0-9_$.]/;
+  var parkingWait = /^\s+- parking to wait for \s*\<(0x[a-f0-9]+)\>/;
+  var waitingOn =  /^\s+- waiting on \<(0x[a-f0-9]+)\>/;
+  var startThreadDump1 =  /^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$/;
+  var startThreadDump2 =  /^Full thread dump Java HotSpot\(TM\) .*:$/;
+  var heap = /^Heap/;
 
-        <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+  var thread = null;
+  var threads = null;
+  var i=-1;
+  var line;
+  function parseThreadDump(){
+    var m;
+    if(line===""){
+      thread = null;
+      return;
+    }
+    m = threadStart.exec(line);
+    if(m){
+      thread = threads.newThread(m[2],line);
+      return;
+    }
+    m = state.exec(line);
+    if(m){
+      thread.addState(m[1],line);
+      return;
+    }
+    m = waitingToLock.exec(line)
+    if(m){
+      thread.addWaiting(m[1],line);
+      return;
+    }
+    m = parkingWait.exec(line)
+    if(m){
+      thread.addWaiting(m[1],line);
+      return;
+    }
+    m = waitingOn.exec(line)
+    if(m){
+      thread.addWaiting(m[1],line);
+      return;
+    }
+    m = locked.exec(line)
+    if(m){
+      thread.addLocked(m[1],line);
+      return;
+    }
+    m = stackTrace.exec(line);
+    if(m){
+      thread.addStackTrace(line);
+      return;
+    }
+    if(heap.test(line)){
+      next = findThreadDump;
+      threads.finish();
+      threads = null;
+      return;
+    }
+    console.log("unexpected line "+i+":"+line);
+  }
+  function findThreadDump(){
+    if(i>0 && startThreadDump2.test(line) && startThreadDump1.test(lines[i-1])){
+      threads = Threads(lines[i-1],line)
+      threads.div.appendTo(div);
+      next = parseThreadDump;
+      return;
+    }
+  }
+  var next = findThreadDump;
+  return {
+    lines:lines,
+    lineNumber:function(){
+      return i;
+    },
+    hasNext:function(){
+      return i<lines.length;
+    },
+    next:function(){
+      i++;
+      line = lines[i];
+      try{
+        next();
+      }catch(e){
+        console.log("i=",i);
+        console.log("line=",lines[i-2]);
+        console.log("line=",lines[i-1]);
+        console.log("line=",lines[i]);
+        console.log("line=",lines[i+1]);
+        console.log("line=",lines[i+2]);
+        console.log("thread=",thread);
+        throw e;
+      }
+    }
+  };
+}
+function parse(lines,div){
+  var p = parser(lines,div);
+  var parseState = $("<div>");
+  div.append(parseState);
+  function doParse(){
+    for(var i=0;i<1000 && p.hasNext(); i++){
+      p.next();
+    }
+    parseState.text("parse end "+p.lineNumber()+"/"+p.lines.length+" lines");
+    if(p.hasNext()){
+      setTimeout(doParse);
+    }else{
+      parseState.remove();
+    }
+  }
+  doParse();
+}
+</script>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
-
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
-</code></pre>
-
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
-
-<h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
-
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
-
-<h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
-
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
-
-<h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
-
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
-
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
-
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
-      </section>
-
-    </div>
-    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
-    
-  </body>
 </html>
