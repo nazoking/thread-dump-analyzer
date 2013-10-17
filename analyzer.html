@@ -25,12 +25,10 @@ $(function(){
   });
   $("#load-dump").on("change",function(e){
     if(e.target.files && e.target.files[0]){
-      try{
-        var fileReader = new FileReader();
-        $("#dump").val(fileReader.readAsText(e.target.files[0]));
-      }catch(e){
-        console.log(e)
-      }
+      var fileReader = new FileReader();
+      fileReader.onload = function(e){ $("#dump").val(e.target.result); }
+      fileReader.onerror = function(){ alert("can't read!"); }
+      fileReader.readAsText(e.target.files[0]);
     }
   });
   $("#scroll-top").click(function(){
