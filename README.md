@@ -1,7 +1,7 @@
-thread-dump-analizer
+thread-dump-analyzer
 ====================
 
-thread-dump-analizer is java thread dump analizer by javascript.
+thread-dump-analyzer is java thread dump analyzer by javascript.
 
 http://nazoking.github.io/thread-dump-analyzer/analyzer.html
 
@@ -11,3 +11,4 @@ http://nazoking.github.io/thread-dump-analyzer/analyzer.html
 - design!
 - document
 - test
+- more analyze
