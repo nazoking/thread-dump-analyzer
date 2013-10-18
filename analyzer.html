@@ -13,16 +13,28 @@
 <script src="analyzer.js"></script>
 <script>
 $(function(){
-  $("#parse-action").click(function(){
-    parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(""));
-  });
-  $("#load-dump").on("change",function(e){
-    if(e.target.files && e.target.files[0]){
+  function loadFile(files){
+    if(files && files[0]){
       var fileReader = new FileReader();
       fileReader.onload = function(e){ $("#dump").val(e.target.result); }
       fileReader.onerror = function(){ alert("can't read!"); }
-      fileReader.readAsText(e.target.files[0]);
+      fileReader.readAsText(files[0]);
     }
+  }
+  $("#parse-action").click(function(){
+    parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(""));
+  });
+  $("#dump").on("drop",function(e){
+    if(e.originalEvent && e.originalEvent.dataTransfer && e.originalEvent.dataTransfer){
+      loadFile(e.originalEvent.dataTransfer.files);
+    }
+    return false;
+  });
+  $("#load-dump").on("change",function(e){
+    if(e.target){
+      loadFile(e.target.files);
+    }
+    return false;
   });
   $("#scroll-top").click(function(){
     $("#dump").scrollTop(0);
