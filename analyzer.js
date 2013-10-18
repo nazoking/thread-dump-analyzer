@@ -118,7 +118,7 @@ function parser(lines,div){
   var parkingWait = /^\s+- parking to wait for \s*<(0x[a-f0-9]+)>/;
   var waitingOn =  /^\s+- waiting on <(0x[a-f0-9]+)>/;
   var startThreadDump1 =  /^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$/;
-  var startThreadDump2 =  /^Full thread dump Java HotSpot\(TM\) .*:$/;
+  var startThreadDump2 =  /^Full thread dump/;
   var heap = /^Heap/;
 
   var thread = null;
