@@ -19,7 +19,7 @@ function LockInfo(objectId){
       this.locked = thr;
       this.onChange();
     }
-  }
+  };
 }
 function Thread(threads,threadId,titleLine){
   var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>').append($("<span>").text(titleLine));
@@ -49,7 +49,7 @@ function Thread(threads,threadId,titleLine){
     },
     lines:function(){
       var txt = div.find('.lines');
-      if(txt.length==0){
+      if(txt.length === 0){
         txt = $('<pre class="lines">').text(lines.join("\n")).hide().appendTo(div);
       }
       return txt;
@@ -74,14 +74,14 @@ function Threads(time,head){
   var lockes = {};
   div.delegate('.thread','click',function(){
     var thread = $(this).data('thread').lines().toggle();
-  })
+  });
   var threadList={};
   var threadSize=0;
   var header = $("<div class='header'>").text(time+"====="+head);
   div.append(header);
   function lockOf(objectId){
     lockes[objectId] = lockes[objectId] || LockInfo(objectId);
-    return lockes[objectId]; 
+    return lockes[objectId];
   }
   return {
     div:div,
@@ -111,14 +111,14 @@ function Threads(time,head){
 }
 function parser(lines,div){
   var threadStart = /^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)/;
-  var waitingToLock = /^\s+- waiting to lock \<(0x[a-f0-9]+)\>/;
-  var locked = /^\s+- locked \<(0x[a-f0-9]+)>/;
+  var waitingToLock = /^\s+- waiting to lock <(0x[a-f0-9]+)>/;
+  var locked = /^\s+- locked <(0x[a-f0-9]+)>/;
   var state =  /^\s+java.lang.Thread.State: ([A-Z_]+)/;
   var stackTrace = /^\s+at [a-zA-Z0-9_$.]/;
-  var parkingWait = /^\s+- parking to wait for \s*\<(0x[a-f0-9]+)\>/;
-  var waitingOn =  /^\s+- waiting on \<(0x[a-f0-9]+)\>/;
+  var parkingWait = /^\s+- parking to wait for \s*<(0x[a-f0-9]+)>/;
+  var waitingOn =  /^\s+- waiting on <(0x[a-f0-9]+)>/;
   var startThreadDump1 =  /^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$/;
-  var startThreadDump2 =  /^Full thread dump Java HotSpot\(TM\) .*:$/;
+  var startThreadDump2 =  /^Full thread dump/;
   var heap = /^Heap/;
 
   var thread = null;
@@ -141,22 +141,22 @@ function parser(lines,div){
       thread.addState(m[1],line);
       return;
     }
-    m = waitingToLock.exec(line)
+    m = waitingToLock.exec(line);
     if(m){
       thread.addWaiting(m[1],line);
       return;
     }
-    m = parkingWait.exec(line)
+    m = parkingWait.exec(line);
     if(m){
       thread.addWaiting(m[1],line);
       return;
     }
-    m = waitingOn.exec(line)
+    m = waitingOn.exec(line);
     if(m){
       thread.addWaiting(m[1],line);
       return;
     }
-    m = locked.exec(line)
+    m = locked.exec(line);
     if(m){
       thread.addLocked(m[1],line);
       return;
@@ -176,7 +176,7 @@ function parser(lines,div){
   }
   function findThreadDump(){
     if(i>0 && startThreadDump2.test(line) && startThreadDump1.test(lines[i-1])){
-      threads = Threads(lines[i-1],line)
+      threads = Threads(lines[i-1],line);
       threads.div.appendTo(div);
       next = parseThreadDump;
       return;
