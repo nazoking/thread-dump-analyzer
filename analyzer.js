@@ -43,10 +43,6 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
     addState:function(state,line){
       this.state = state;
       lines.push(line);
-      var s = div.find(".state");
-      $.each(this.preThreads(),function(){
-        $('<span class="prethread-'+this.state+'">').text((this.state||"").charAt(0)).appendTo(s);
-      });
       div.addClass("state-"+state);
     },
     addWaiting:function(objectId,line){
@@ -118,6 +114,21 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
           div.addClass('blocking');
         }
       }
+    },
+    finish:function(endLineNumber){
+      var s = div.find(".state");
+      $.each(this.preThreads(),function(){
+        var preState = $('<span class="prestate prethread-'+this.state+'">').text((this.state||"").charAt(0)).appendTo(s);
+        if(this.preThread && this.linesData.length > 1){
+          var join = $("<span>");
+          if(this.preThread.linesData.length == this.linesData.length && this.linesData.join("\n")===this.preThread.linesData.join("\n")){
+            join.text("=").appendTo(preState);
+            preState.addClass("longprocess");
+          }else{
+            join.text("<").appendTo(s);
+          }
+        }
+      });
     }
   };
   div.data('thread',self);
@@ -196,9 +207,15 @@ Checker.prototype.test = function(line){
 };
 function Parser(lines,div){
   var thread = null;
+  var i=-1;
+  function threadFinish(){
+    if(thread){
+      thread.finish(i);
+    }
+    thread = null;
+  }
   var oneThreadDump = null;
   var preThreadDump = null;
-  var i=-1;
   var line;
   var checkers = [
     new Checker(/^\s+at [a-zA-Z].*$/,function(m,line){
@@ -212,15 +229,17 @@ function Parser(lines,div){
       }
     }),
     new Checker(/^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)(?:\s+[a-zA-Z0-9_]+=0x[a-f0-9]+)*\s+([^\[]+)(?:\[|$)/, function(m,line){
+      threadFinish();
       thread = oneThreadDump.newThread(m[2], m[1], m[3], line);
     }),
     new Checker(/^$/,function(m,line){
-      thread = null;
+      threadFinish();
     }),
     new Checker(/^\s+java.lang.Thread.State: ([A-Z_]+)/,function(m,line){
       thread.addState(m[1],line);
     }),
     new Checker(/^Heap/,function(m,line){
+      threadFinish();
       next = findThreadDump;
       oneThreadDump.finish(i);
       preThreadDump = oneThreadDump;
