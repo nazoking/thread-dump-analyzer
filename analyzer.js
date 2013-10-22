@@ -51,12 +51,15 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
     },
     addWaiting:function(objectId,line){
       lines.push(line);
-      div.append($('<div>').text(line));
+      if(!hasTopStack){
+        div.find(".topStack").text(line);
+        hasTopStack=true;
+      }
       div.addClass("waiting-"+objectId);
       threads.addWaiting(objectId,this);
     },
     addStackTrace:function(line){
-      if(!hasTopStack){
+      if(!hasTopStack && this.state === "RUNNABLE"){
         div.find(".topStack").text(line);
         hasTopStack=true;
       }
@@ -110,7 +113,7 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
           if(lockInfo.waitings.length==1 && lockInfo.waitings[0]==this){
             return;
           }
-          div.find(".locked-"+lockInfo.objectId).find(".count").text(lockInfo.waitings.length+" waiting)");
+          div.find(".locked-"+lockInfo.objectId).show().find(".count").text(lockInfo.waitings.length+" waiting)");
           threads.div.find('.waiting-'+lockInfo.objectId).addClass('blocked');
           div.addClass('blocking');
         }
