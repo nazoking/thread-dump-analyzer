@@ -21,28 +21,43 @@ function LockInfo(objectId){
     }
   };
 }
-function Thread(threads,threadId,titleLine){
-  var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>').append($("<span>").text(titleLine));
+function Thread(threads, threadId, threadName, condition, preThread, titleLine){
+  var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>').append($("<span>").text('"'+threadName+'" '+condition));
   var lines = [titleLine];
   var self = {
-     div:div,
-     threadId:threadId,
-     addState:function(state,line){
-       this.state = state;
-       lines.push(line);
-       div.find(".state").text(state+":");
-       div.addClass("state-"+state);
-     },
-     addWaiting:function(objectId,line){
+    div:div,
+    threadDump:threads,
+    threadId:threadId,
+    preThread:preThread,
+    linesData:lines,
+    preThreads:function(){
+      var thread = this;
+      var ret = [];
+      while(thread){
+        ret.push(thread);
+        thread=thread.preThread;
+      }
+      return ret;
+    },
+    addState:function(state,line){
+      this.state = state;
+      lines.push(line);
+      var s = div.find(".state");
+      $.each(this.preThreads(),function(){
+        $('<span class="prethread-'+this.state+'">').text((this.state||"").charAt(0)).appendTo(s);
+      });
+      div.addClass("state-"+state);
+    },
+    addWaiting:function(objectId,line){
       lines.push(line);
       div.append($('<div>').text(line));
       div.addClass("waiting-"+objectId);
       threads.addWaiting(objectId,this);
-     },
-     addStackTrace:function(line){
-       lines.push(line);
-     },
-     addLocked:function(objectId,line){
+    },
+    addStackTrace:function(line){
+      lines.push(line);
+    },
+    addLocked:function(objectId,line){
       lines.push(line);
       div.append($('<div class="locked-'+objectId+'" style="display:none"><span class="count"></span>').append($('<span>').text(line)));
       threads.addLocked(objectId,this);
@@ -50,31 +65,51 @@ function Thread(threads,threadId,titleLine){
     lines:function(){
       var txt = div.find('.lines');
       if(txt.length === 0){
-        txt = $('<pre class="lines">').text(lines.join("\n")).hide().appendTo(div);
+        txt = $('<div class="lines">').hide();
+        $.map(this.preThreads(),function(t){
+          var pre = $("<pre>").text(t.threadDump.time);
+          $.each(t.linesData,function(i){
+            $("<div class='line' data-ln="+i+">").text(this).appendTo(pre);
+          });
+          if(t.preThread){
+            var i = 1;
+            var pr;
+            var cur;
+            while((pr=t.preThread.linesData[t.preThread.linesData.length - i])!==undefined &&
+              (cur=t.linesData[t.linesData.length - i])!==undefined){
+              if(pr===cur){
+                pre.find("div[data-ln="+(t.linesData.length - i)+"]").addClass("longprocess");
+              }else{
+                break;
+              }
+              i++;
+            }
+          }
+          pre.appendTo(txt);
+        });
+        txt.appendTo(div);
       }
       return txt;
     },
     onLockInfoChanged:function(lockInfo){
       if(lockInfo.locked==this){
         if(lockInfo.waitings.length){
-          div.find(".locked-"+lockInfo.objectId).show().find(".count").text(lockInfo.waitings.length+" waiting)");
-          threads.div.find('.waiting-'+lockInfo.objectId).hide().addClass('blocked');
+          if(lockInfo.waitings.length==1 && lockInfo.waitings[0]==this){
+            return;
+          }
+          div.find(".locked-"+lockInfo.objectId).find(".count").text(lockInfo.waitings.length+" waiting)");
+          threads.div.find('.waiting-'+lockInfo.objectId).addClass('blocked');
           div.addClass('blocking');
         }
-      }else{
-        div.find(".locked-"+lockInfo.objectId).show();
       }
     }
   };
   div.data('thread',self);
   return self;
 }
-function Threads(time,head){
+function ThreadDump(preThreadDump, time, head){
   var div = $("<div class='threads'>");
   var lockes = {};
-  div.delegate('.thread','click',function(){
-    var thread = $(this).data('thread').lines().toggle();
-  });
   var threadList={};
   var threadSize=0;
   var header = $("<div class='header'>").text(time+"====="+head);
@@ -83,13 +118,21 @@ function Threads(time,head){
     lockes[objectId] = lockes[objectId] || LockInfo(objectId);
     return lockes[objectId];
   }
+  function preThread(threadId){
+    if(preThreadDump && preThreadDump.threadList[threadId]){
+      return preThreadDump.threadList[threadId];
+    }else{
+      return null;
+    }
+  }
   return {
     div:div,
     header:header,
+    time:time,
     threadSize:threadSize,
     threadList:threadList,
-    newThread:function(threadId,titleLine){
-      var thread = Thread(this,threadId,titleLine);
+    newThread:function(threadId,threadName,contidion,titleLine){
+      var thread = Thread(this, threadId, threadName, contidion, preThread(threadId), titleLine);
       div.append(thread.div);
       threadList[threadId]=thread;
       threadSize+=1;
@@ -105,12 +148,28 @@ function Threads(time,head){
       var btn = $('<button>').text("show/hide blocked("+div.find('.blocked').length+")").click(function(){
         div.find('.blocked').toggle();
       });
-      $('<div>').text('Thread size='+threadSize).append(btn).appendTo(header);
+      var t = $('<div>').text('Thread size='+threadSize).append(btn).appendTo(header);
+      $.each("WAITING TIMED_WAITING RUNNABLE BLOCKED".split(" "),function(){
+        var state = this;
+        var checkbox = $('<input type=checkbox>').change(function(){
+          div.find('.state-'+state).toggle(this.checked);
+        });
+        $('<label>').text(state+"("+div.find(".state-"+state).length+")").prepend(checkbox).appendTo(t);
+        if("WAITING"==state || "TIMED_WAITING"==state){
+          checkbox.trigger("change");
+        }else{
+          checkbox.prop("checked","checked");
+        }
+      });
+      div.delegate('.thread','dblclick',function(){
+        $(this).data('thread').lines().toggle();
+        return false;
+      });
     }
   };
 }
-function parser(lines,div){
-  var threadStart = /^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)/;
+function Parser(lines,div){
+  var threadStart = /^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)(?:\s+[a-zA-Z0-9_]+=0x[a-f0-9]+)*\s+([^\[]+)(?:\[|$)/;
   var waitingToLock = /^\s+- waiting to lock <(0x[a-f0-9]+)>/;
   var locked = /^\s+- locked <(0x[a-f0-9]+)>/;
   var state =  /^\s+java.lang.Thread.State: ([A-Z_]+)/;
@@ -122,7 +181,8 @@ function parser(lines,div){
   var heap = /^Heap/;
 
   var thread = null;
-  var threads = null;
+  var oneThreadDump = null;
+  var preThreadDump = null;
   var i=-1;
   var line;
   function parseThreadDump(){
@@ -133,7 +193,7 @@ function parser(lines,div){
     }
     m = threadStart.exec(line);
     if(m){
-      thread = threads.newThread(m[2],line);
+      thread = oneThreadDump.newThread(m[2], m[1], m[3], line);
       return;
     }
     m = state.exec(line);
@@ -168,16 +228,21 @@ function parser(lines,div){
     }
     if(heap.test(line)){
       next = findThreadDump;
-      threads.finish();
-      threads = null;
+      oneThreadDump.finish();
+      preThreadDump = oneThreadDump;
+      oneThreadDump = null;
       return;
     }
     console.log("unexpected line "+i+":"+line);
   }
   function findThreadDump(){
     if(i>0 && startThreadDump2.test(line) && startThreadDump1.test(lines[i-1])){
-      threads = Threads(lines[i-1],line);
-      threads.div.appendTo(div);
+      oneThreadDump = ThreadDump(preThreadDump, lines[i-1],line);
+      if(preThreadDump){
+        oneThreadDump.div.insertBefore(preThreadDump.div);
+      }else{
+        oneThreadDump.div.appendTo(div);
+      }
       next = parseThreadDump;
       return;
     }
@@ -210,7 +275,7 @@ function parser(lines,div){
   };
 }
 function parse(lines,div){
-  var p = parser(lines,div);
+  var p = Parser(lines,div);
   var parseState = $("<div>");
   div.append(parseState);
   function doParse(){
