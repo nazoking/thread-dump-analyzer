@@ -10,5 +10,5 @@
 .thread.blocking{ border:2px solid #44f; }
 .threads{ margin-bottom:3em; }
 .threads .header{ background:#ffe; }
-.lines .line.longprocess{ font-weight:bold; }
-
+.lines .longprocess{ font-weight:bold; }
+.thread .topStack{ color: #aaa; }
