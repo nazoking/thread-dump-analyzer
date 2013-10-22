@@ -1,8 +1,14 @@
 .thread.state-RUNNABLE{ background: #eef; }
+.thread.state-RUNNABLE .prethread-RUNNABLE{ background: #ccf; }
 .thread.state-BLOCKED{ background: #fee; }
+.thread.state-BLOCKED .prethread-BLOCKED{ background: #fcc; }
 .thread.state-WAITING,
 .thread.state-TIMED_WAITING{ background: #fff8f8; }
+.thread.state-WAITING .prethread-WAITING,
+.thread.state-TIMED_WAITING .thread.state-TIMED_WAITING{ background: #ffcccc; }
 .thread{ border:1px solid #dff; }
 .thread.blocking{ border:2px solid #44f; }
 .threads{ margin-bottom:3em; }
 .threads .header{ background:#ffe; }
+.lines .line.longprocess{ font-weight:bold; }
+
