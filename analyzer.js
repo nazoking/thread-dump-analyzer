@@ -22,8 +22,9 @@ function LockInfo(objectId){
   };
 }
 function Thread(threads, threadId, threadName, condition, preThread, titleLine){
-  var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>').append($("<span>").text('"'+threadName+'" '+condition));
+  var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>').append($("<span>").text('"'+threadName+'" '+condition)).append("<span class=topStack>");
   var lines = [titleLine];
+  var hasTopStack = false;
   var self = {
     div:div,
     threadDump:threads,
@@ -55,6 +56,10 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
       threads.addWaiting(objectId,this);
     },
     addStackTrace:function(line){
+      if(!hasTopStack){
+        div.find(".topStack").text(line);
+        hasTopStack=true;
+      }
       lines.push(line);
     },
     addLocked:function(objectId,line){

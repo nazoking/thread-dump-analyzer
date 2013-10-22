@@ -11,4 +11,4 @@
 .threads{ margin-bottom:3em; }
 .threads .header{ background:#ffe; }
 .lines .longprocess{ font-weight:bold; }
-
+.thread .topStack{ color: #aaa; }
