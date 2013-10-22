@@ -1,11 +1,16 @@
-<html>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
 <title>Thread Dump Analyzer</title>
 <link href="analyzer.css" media="all" rel="stylesheet" type="text/css" />
+<div>
+<a href="#" id="scroll-top" style="float:right" title="scroll to top">^^^</a>
+<div style="font-size:32px;">Drop your THREAD DUMP FILE on text area, or paste , or select this <input type="file" id="load-dump" value="load dump" /></div>
+<br />
 <textarea id="dump" style="width:100%;height:10em">
 </textarea><br />
-<button id="parse-action">parse</button>
-<input type="file" id="load-dump" value="load dump" />
-<a href="#" id="scroll-top">^^^</a>
+<center><button id="parse-action" disabled="disabled" style="font-size:32px; min-width:200px;">analyze! <span id="fname"></span></button></center>
+</div>
+
 <pre id="parse-result">
 </pre>
 
@@ -16,12 +21,16 @@ $(function(){
   function loadFile(files){
     if(files && files[0]){
       var fileReader = new FileReader();
-      fileReader.onload = function(e){ $("#dump").val(e.target.result); }
+      fileReader.onload = function(e){
+        $("#dump").val(e.target.result).trigger("change");
+        $("#fname").text(files[0].name);
+      };
       fileReader.onerror = function(){ alert("can't read!"); }
       fileReader.readAsText(files[0]);
     }
   }
   $("#parse-action").click(function(){
+    $("#parse-action").prop("disabled",true);
     parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(""));
   });
   $("#dump").on("drop",function(e){
@@ -29,6 +38,12 @@ $(function(){
       loadFile(e.originalEvent.dataTransfer.files);
     }
     return false;
+  }).change(function(){
+    if(this.value.length!=0){
+      $("#parse-action").prop("disabled",false);
+    }
+  }).keyup(function(){
+    $(this).trigger("change");
   });
   $("#load-dump").on("change",function(e){
     if(e.target){
