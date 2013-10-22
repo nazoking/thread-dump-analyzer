@@ -66,26 +66,34 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
       var txt = div.find('.lines');
       if(txt.length === 0){
         txt = $('<div class="lines">').hide();
-        $.map(this.preThreads(),function(t){
-          var pre = $("<pre>").text(t.threadDump.time);
+        var before=null;
+        $.each(this.preThreads(),function(){
+          var t = this;
+          var view = $("<pre>").text(t.threadDump.time);
           $.each(t.linesData,function(i){
-            $("<div class='line' data-ln="+i+">").text(this).appendTo(pre);
+            $("<div class='line' data-ln="+i+">").text(this).appendTo(view);
           });
-          if(t.preThread){
+          if(before){
             var i = 1;
             var pr;
             var cur;
-            while((pr=t.preThread.linesData[t.preThread.linesData.length - i])!==undefined &&
+            var removed = 0;
+            while((pr=before.linesData[before.linesData.length - i])!==undefined &&
               (cur=t.linesData[t.linesData.length - i])!==undefined){
               if(pr===cur){
-                pre.find("div[data-ln="+(t.linesData.length - i)+"]").addClass("longprocess");
+                view.find("div[data-ln="+(t.linesData.length - i)+"]").remove();
+                removed ++;
               }else{
                 break;
               }
               i++;
             }
+            if(removed){
+              view.append($("<div class='longprocess'>").text("\t\t and same thread dump "+removed+" lines"))
+            }
           }
-          pre.appendTo(txt);
+          view.appendTo(txt);
+          before = t;
         });
         txt.appendTo(div);
       }
