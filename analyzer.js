@@ -119,7 +119,7 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
       var s = div.find(".state");
       $.each(this.preThreads(),function(){
         var preState = $('<span class="prestate prethread-'+this.state+'">').text((this.state||"").charAt(0)).appendTo(s);
-        if(this.preThread){
+        if(this.preThread && this.linesData.length > 1){
           var join = $("<span>");
           if(this.preThread.linesData.length == this.linesData.length && this.linesData.join("\n")===this.preThread.linesData.join("\n")){
             join.text("=").appendTo(preState);
