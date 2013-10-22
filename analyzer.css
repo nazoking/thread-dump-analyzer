@@ -10,5 +10,6 @@
 .thread.blocking{ border:2px solid #44f; }
 .threads{ margin-bottom:3em; }
 .threads .header{ background:#ffe; }
-.lines .longprocess{ font-weight:bold; }
+.prestate.longprocess + .prestate{ font-weight:bold; }
+.longprocess{ font-weight:bold; }
 .thread .topStack{ color: #aaa; }
