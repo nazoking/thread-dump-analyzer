@@ -123,12 +123,12 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
   div.data('thread',self);
   return self;
 }
-function ThreadDump(preThreadDump, time, head){
+function ThreadDump(preThreadDump, time, head, startLineNumber){
   var div = $("<div class='threads'>");
   var lockes = {};
   var threadList={};
   var threadSize=0;
-  var header = $("<div class='header'>").text(time+"====="+head);
+  var header = $("<div class='header'>").text(time+"====="+head).append($('<span class=linesInfo>').text('(line:'+startLineNumber+'-'));
   div.append(header);
   function lockOf(objectId){
     lockes[objectId] = lockes[objectId] || LockInfo(objectId);
@@ -147,6 +147,7 @@ function ThreadDump(preThreadDump, time, head){
     time:time,
     threadSize:threadSize,
     threadList:threadList,
+    startLineNumber:startLineNumber,
     newThread:function(threadId,threadName,contidion,titleLine){
       var thread = Thread(this, threadId, threadName, contidion, preThread(threadId), titleLine);
       div.append(thread.div);
@@ -160,11 +161,9 @@ function ThreadDump(preThreadDump, time, head){
     addLocked:function(objectId,thread){
       lockOf(objectId).setLocked(thread);
     },
-    finish:function(){
-      var btn = $('<button>').text("show/hide blocked("+div.find('.blocked').length+")").click(function(){
-        div.find('.blocked').toggle();
-      });
-      var t = $('<div>').text('Thread size='+threadSize).append(btn).appendTo(header);
+    finish:function(endLineNumber){
+      div.find('.linesInfo').text(div.find('.linesInfo').text()+endLineNumber+')');
+      var t = $('<div>').text('Thread count='+threadSize).appendTo(header);
       $.each("WAITING TIMED_WAITING RUNNABLE BLOCKED".split(" "),function(){
         var state = this;
         var checkbox = $('<input type=checkbox>').change(function(){
@@ -223,7 +222,7 @@ function Parser(lines,div){
     }),
     new Checker(/^Heap/,function(m,line){
       next = findThreadDump;
-      oneThreadDump.finish();
+      oneThreadDump.finish(i);
       preThreadDump = oneThreadDump;
       oneThreadDump = null;
     })
@@ -242,7 +241,7 @@ function Parser(lines,div){
   }
   function findThreadDump(){
     if(i>0 && /^Full thread dump/.test(line) && /^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$/.test(lines[i-1])){
-      oneThreadDump = ThreadDump(preThreadDump, lines[i-1],line);
+      oneThreadDump = ThreadDump(preThreadDump, lines[i-1], line, i);
       if(preThreadDump){
         oneThreadDump.div.insertBefore(preThreadDump.div);
       }else{
