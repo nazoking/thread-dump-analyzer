@@ -9,7 +9,7 @@
 .thread{ border:1px solid #dff; }
 .thread.blocking{ border:2px solid #44f; }
 .threads{ margin-bottom:3em; }
-.threads .header{ background:#ffe; }
+.threads .header .time{ background-image: linear-gradient(to bottom,#5cb85c 0,#449d44 100%); color:white; }
 .state{ font-family: Monaco,Menlo,Consolas,"Courier New",monospace; margin-right:8px;}
 .prestate.longprocess + .prestate{ font-weight:bold; }
 .longprocess{ font-weight:bold; }
@@ -20,7 +20,9 @@
 body{ padding:16px; }
 pre.detail{ word-break: normal; word-wrap: normal; overflow-x: auto; white-space: pre; }
 .lines{ padding:8px; }
-
+.header .bar{ padding:4px; }
 .bs-social-buttons { display: inline-block; margin-bottom: 20px; padding-left: 0; list-style: none; }
 .bs-social-buttons li { display: inline-block; line-height: 1; padding: 5px 8px; }
 .github-btn { border: 0; overflow: hidden; }
+.linesInfo{ display: inline-block; color: #ccf }
+.linesInfo .lineNum:hover{ text-decoration: underline; }

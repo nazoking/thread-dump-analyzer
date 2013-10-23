@@ -33,14 +33,32 @@ $(function(){
       fileReader.readAsText(files[0]);
     }
   }
+  $("#parse-result").delegate('.lineNum','click',function(){
+    $("#dump").scrollTop(parseInt($(this).text()) * parseInt($("#dump").css('line-height')));
+  });
   $("#parse-action").click(function(){
     $("#parse-action").addClass("disabled");
-    var parseState = $('<div class="progress" id="progress"><div class="progress-bar progress-striped active">').insertBefore("#parse-result");
+    var parseState = $('<div class="progress" id="progress"><div class="progress-bar progress-striped">').insertBefore("#parse-result");
     $('html, body').animate({scrollTop: $("#parse-action").offset().top}, 1500 );
-    parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(""),function(line,lineMax){
+    parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(parseState),function(line,lineMax, threadDumps){
       if(line==lineMax){
         $(".threads:first").find("label.lb-RUNNABLE, label.lb-BLOCKED").button('toggle');
-        parseState.remove();
+        var nlast = 0;
+        parseState.html("");
+        function pbar(klass,size){
+          return $('<div class="progress-bar progress-bar-'+klass+'" style="width: '+(size/10)+'%">').appendTo(parseState);
+        }
+        $.each(threadDumps,function(){
+          var n = Math.floor(1000*this.startLineNumber/lineMax);
+          if(n!=nlast){
+            pbar("warning",n-nlast).text("not thread dump");
+          }
+          nlast = Math.floor(1000*this.endLineNumber/lineMax);
+          pbar("success",nlast-n).text(this.timeText);
+        });
+        if(nlast!=1000){
+          pbar("warning",1000-nlast).text(this.timeText);
+        }
       }else{
         parseState.find(".progress-bar").css("width",Math.floor((line*100)/lineMax)+"%").text(line+"/"+lineMax+" "+Math.floor((line*100)/lineMax)+"%");
       }
@@ -68,6 +86,7 @@ $(function(){
   $("#scroll-top").click(function(){
     $("#dump").scrollTop(0);
   });
+  (function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs'));
 });
 </script>
 <footer>
@@ -86,6 +105,5 @@ $(function(){
     </li>
   </ul>
 </footer>
-<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
 </body>
 </html>

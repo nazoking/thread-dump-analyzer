@@ -21,7 +21,16 @@ function LockInfo(objectId){
     }
   };
 }
-function Thread(threads, threadId, threadName, condition, preThread, titleLine){
+function LinesInfo(start,end){
+  var l = $('<span class="linesInfo">')
+    .text('line:')
+    .append($('<span class="lineNum">').text(start));
+  if( end!==undefined ){
+    l.append("-").append($('<span class="lineNum">').text(end));
+  }
+  return l;
+}
+function Thread(threads, threadId, threadName, condition, preThread, titleLine, startLineNumber){
   var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>')
     .append($("<span>").text('"'+threadName+'" '+condition))
     .append("<span class=topStack>")
@@ -35,6 +44,7 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
     threadId:threadId,
     preThread:preThread,
     linesData:lines,
+    startLineNumber:startLineNumber,
     preThreads:function(){
       var thread = this;
       var ret = [];
@@ -77,7 +87,7 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
         var before=null;
         $.each(this.preThreads(),function(){
           var t = this;
-          var view = $("<pre class='detail'>").text(t.threadDump.time);
+          var view = $("<pre class='detail'>").text(t.threadDump.time).append(LinesInfo(t.startLineNumber,t.endLineNumber));
           $.each(t.linesData,function(i){
             $("<div class='line' data-ln="+i+">").text(this).appendTo(view);
           });
@@ -120,6 +130,7 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
       }
     },
     finish:function(endLineNumber){
+      this.endLineNumber = endLineNumber;
       var s = div.find(".state");
       var tip=[];
       $.each(this.preThreads(),function(){
@@ -146,7 +157,13 @@ function ThreadDump(preThreadDump, time, head, startLineNumber){
   var lockes = {};
   var threadList={};
   var threadSize=0;
-  var header = $("<div class='header'>").text(time+"====="+head).append($('<span class=linesInfo>').text('(line:'+startLineNumber+'-')).appendTo(div);
+  var timeText = time;
+  if(preThreadDump && preThreadDump.time){
+    console.log("sec",new Date(time).getTime(),new Date(preThreadDump.time).getTime());
+    timeText += " after "+ ((new Date(time).getTime()-(new Date(preThreadDump.time).getTime()))/1000)+"sec";
+  }
+  var timeView = $('<div class="time">').text(timeText+" "+head).append(LinesInfo(startLineNumber));
+  var header = $("<div class='header'>").append(timeView).appendTo(div);
   var threadBox = $('<div>').appendTo(div);
   function lockOf(objectId){
     lockes[objectId] = lockes[objectId] || LockInfo(objectId);
@@ -166,9 +183,10 @@ function ThreadDump(preThreadDump, time, head, startLineNumber){
     threadSize:threadSize,
     threadList:threadList,
     startLineNumber:startLineNumber,
+    timeText:timeText,
     threadBox:threadBox,
-    newThread:function(threadId,threadName,contidion,titleLine){
-      var thread = Thread(this, threadId, threadName, contidion, preThread(threadId), titleLine);
+    newThread:function(threadId,threadName,contidion,titleLine,startLineNumber){
+      var thread = Thread(this, threadId, threadName, contidion, preThread(threadId), titleLine, startLineNumber);
       thread.div.appendTo(threadBox);
       threadList[threadId]=thread;
       threadSize+=1;
@@ -181,8 +199,9 @@ function ThreadDump(preThreadDump, time, head, startLineNumber){
       lockOf(objectId).setLocked(thread);
     },
     finish:function(endLineNumber){
-      div.find('.linesInfo').text(div.find('.linesInfo').text()+endLineNumber+')');
-      var toolbar = $('<div>').text('Thread count='+threadSize).appendTo(header);
+      this.endLineNumber = endLineNumber;
+      div.find('.header .linesInfo').html(LinesInfo(startLineNumber,endLineNumber));
+      var toolbar = $('<div class="bar">').text('Thread count='+threadSize).appendTo(header);
       var t = $('<div class="btn-group" data-toggle="buttons">').appendTo(toolbar);
       $.each("WAITING TIMED_WAITING RUNNABLE BLOCKED".split(" "),function(){
         var state = this;
@@ -224,6 +243,7 @@ Checker.prototype.test = function(line){
 };
 function Parser(lines,div){
   var thread = null;
+  var threadDumps = [];
   var i=-1;
   function threadFinish(){
     if(thread){
@@ -247,7 +267,7 @@ function Parser(lines,div){
     }),
     new Checker(/^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)(?:\s+[a-zA-Z0-9_]+=0x[a-f0-9]+)*\s+([^\[]+)(?:\[|$)/, function(m,line){
       threadFinish();
-      thread = oneThreadDump.newThread(m[2], m[1], m[3], line);
+      thread = oneThreadDump.newThread(m[2], m[1], m[3], line, i);
     }),
     new Checker(/^$/,function(m,line){
       threadFinish();
@@ -278,6 +298,7 @@ function Parser(lines,div){
   function findThreadDump(){
     if(i>0 && /^Full thread dump/.test(line) && /^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$/.test(lines[i-1])){
       oneThreadDump = ThreadDump(preThreadDump, lines[i-1], line, i);
+      threadDumps.push(oneThreadDump);
       if(preThreadDump){
         oneThreadDump.div.insertBefore(preThreadDump.div);
       }else{
@@ -289,6 +310,7 @@ function Parser(lines,div){
   }
   var next = findThreadDump;
   return {
+    threadDumps:threadDumps,
     lines:lines,
     lineNumber:function(){
       return i;
@@ -320,7 +342,7 @@ function parse(lines,div,callback){
     for(var i=0;i<1000 && p.hasNext(); i++){
       p.next();
     }
-    callback(p.lineNumber(),p.lines.length);
+    callback(p.lineNumber(),p.lines.length, p.threadDumps);
     if(p.hasNext()){
       setTimeout(doParse);
     }
