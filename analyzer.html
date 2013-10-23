@@ -1,20 +1,24 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <title>Thread Dump Analyzer</title>
+<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-theme.min.css">
 <link href="analyzer.css" media="all" rel="stylesheet" type="text/css" />
-<div>
+<body>
+<div class="jumbotron" id="jumbotron">
+<h1>Thread Dump Analyzer</h1>
+<p>Drop your JVM THREAD DUMP FILE on text area, or paste , or select this <input type="file" id="load-dump" value="load dump" /></p>
 <a href="#" id="scroll-top" style="float:right" title="scroll to top">^^^</a>
-<div style="font-size:32px;">Drop your THREAD DUMP FILE on text area, or paste , or select this <input type="file" id="load-dump" value="load dump" /></div>
-<br />
-<textarea id="dump" style="width:100%;height:10em">
+<textarea id="dump" wrap="off">
 </textarea><br />
-<center><button id="parse-action" disabled="disabled" style="font-size:32px; min-width:200px;">analyze! <span id="fname"></span></button></center>
+</div>
+<center style="margin:48px"><button id="parse-action" class="btn btn-lg btn-primary disabled">analyze! <span id="fname"></span></button></center>
+
+<div id="parse-result">
 </div>
 
-<pre id="parse-result">
-</pre>
-
-<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+<script src="https://code.jquery.com/jquery-1.10.1.min.js"></script>
+<script src="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
 <script src="analyzer.js"></script>
 <script>
 $(function(){
@@ -30,17 +34,27 @@ $(function(){
     }
   }
   $("#parse-action").click(function(){
-    $("#parse-action").prop("disabled",true);
-    parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(""));
+    $("#parse-action").addClass("disabled");
+    var parseState = $('<div class="progress" id="progress"><div class="progress-bar progress-striped active">').insertBefore("#parse-result");
+    $('html, body').animate({scrollTop: $("#parse-action").offset().top}, 1500 );
+    parse($("#dump").val().split(/\r\n|\r|\n/),$("#parse-result").html(""),function(line,lineMax){
+      if(line==lineMax){
+        $(".threads:first").find("label.lb-RUNNABLE, label.lb-BLOCKED").button('toggle');
+        parseState.remove();
+      }else{
+        parseState.find(".progress-bar").css("width",Math.floor((line*100)/lineMax)+"%").text(line+"/"+lineMax+" "+Math.floor((line*100)/lineMax)+"%");
+      }
+    });
   });
-  $("#dump").on("drop",function(e){
+  $("#jumbotron").on("drop",function(e){
     if(e.originalEvent && e.originalEvent.dataTransfer && e.originalEvent.dataTransfer){
       loadFile(e.originalEvent.dataTransfer.files);
     }
     return false;
-  }).change(function(){
+  });
+  $("#dump").change(function(){
     if(this.value.length!=0){
-      $("#parse-action").prop("disabled",false);
+      $("#parse-action").removeClass("disabled");
     }
   }).keyup(function(){
     $(this).trigger("change");
@@ -56,4 +70,22 @@ $(function(){
   });
 });
 </script>
+<footer>
+  <ul class="bs-social-buttons">
+    <li>
+      <iframe class="github-btn" src="http://ghbtns.com/github-btn.html?user=nazoking&amp;repo=thread-dump-analyzer&amp;type=watch&amp;count=true" width="100" height="20" title="Star on GitHub"></iframe>
+    </li>
+    <li>
+      <iframe class="github-btn" src="http://ghbtns.com/github-btn.html?user=nazoking&amp;repo=thread-dump-analyzer&amp;type=fork&amp;count=true" width="102" height="20" title="Fork on GitHub"></iframe>
+    </li>
+    <li class="follow-btn">
+      <a href="https://twitter.com/nazoking" class="twitter-follow-button" data-show-count="false" data-lang="ja">follow @nazoking</a>
+    </li>
+    <li class="tweet-btn">
+      <a href="https://twitter.com/share" class="twitter-share-button" data-count="horizontal" data-via="nazoking" data-url="http://nazoking.github.io/thread-dump-analyzer/analyzer.html" >Tweet</a>
+    </li>
+  </ul>
+</footer>
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+</body>
 </html>

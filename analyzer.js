@@ -22,7 +22,11 @@ function LockInfo(objectId){
   };
 }
 function Thread(threads, threadId, threadName, condition, preThread, titleLine){
-  var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>').append($("<span>").text('"'+threadName+'" '+condition)).append("<span class=topStack>");
+  var div = $('<div class="thread tid-'+threadId+'"><span class="state"/>')
+    .append($("<span>").text('"'+threadName+'" '+condition))
+    .append("<span class=topStack>")
+    .hide()
+    .prepend($('<div style="float:right"><span class="expand-btn glyphicon glyphicon-chevron-left">'));
   var lines = [titleLine];
   var hasTopStack = false;
   var self = {
@@ -73,7 +77,7 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
         var before=null;
         $.each(this.preThreads(),function(){
           var t = this;
-          var view = $("<pre>").text(t.threadDump.time);
+          var view = $("<pre class='detail'>").text(t.threadDump.time);
           $.each(t.linesData,function(i){
             $("<div class='line' data-ln="+i+">").text(this).appendTo(view);
           });
@@ -117,7 +121,9 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
     },
     finish:function(endLineNumber){
       var s = div.find(".state");
+      var tip=[];
       $.each(this.preThreads(),function(){
+        tip.push(this.state);
         var preState = $('<span class="prestate prethread-'+this.state+'">').text((this.state||"").charAt(0)).appendTo(s);
         if(this.preThread && this.linesData.length > 1){
           var join = $("<span>");
@@ -129,6 +135,7 @@ function Thread(threads, threadId, threadName, condition, preThread, titleLine){
           }
         }
       });
+      s.prop("title",tip.join(" <= "));
     }
   };
   div.data('thread',self);
@@ -139,8 +146,8 @@ function ThreadDump(preThreadDump, time, head, startLineNumber){
   var lockes = {};
   var threadList={};
   var threadSize=0;
-  var header = $("<div class='header'>").text(time+"====="+head).append($('<span class=linesInfo>').text('(line:'+startLineNumber+'-'));
-  div.append(header);
+  var header = $("<div class='header'>").text(time+"====="+head).append($('<span class=linesInfo>').text('(line:'+startLineNumber+'-')).appendTo(div);
+  var threadBox = $('<div>').appendTo(div);
   function lockOf(objectId){
     lockes[objectId] = lockes[objectId] || LockInfo(objectId);
     return lockes[objectId];
@@ -159,9 +166,10 @@ function ThreadDump(preThreadDump, time, head, startLineNumber){
     threadSize:threadSize,
     threadList:threadList,
     startLineNumber:startLineNumber,
+    threadBox:threadBox,
     newThread:function(threadId,threadName,contidion,titleLine){
       var thread = Thread(this, threadId, threadName, contidion, preThread(threadId), titleLine);
-      div.append(thread.div);
+      thread.div.appendTo(threadBox);
       threadList[threadId]=thread;
       threadSize+=1;
       return thread;
@@ -174,21 +182,30 @@ function ThreadDump(preThreadDump, time, head, startLineNumber){
     },
     finish:function(endLineNumber){
       div.find('.linesInfo').text(div.find('.linesInfo').text()+endLineNumber+')');
-      var t = $('<div>').text('Thread count='+threadSize).appendTo(header);
+      var toolbar = $('<div>').text('Thread count='+threadSize).appendTo(header);
+      var t = $('<div class="btn-group" data-toggle="buttons">').appendTo(toolbar);
       $.each("WAITING TIMED_WAITING RUNNABLE BLOCKED".split(" "),function(){
         var state = this;
         var checkbox = $('<input type=checkbox>').change(function(){
           div.find('.state-'+state).toggle(this.checked);
         });
-        $('<label>').text(state+"("+div.find(".state-"+state).length+")").prepend(checkbox).appendTo(t);
-        if("WAITING"==state || "TIMED_WAITING"==state){
-          checkbox.trigger("change");
-        }else{
-          checkbox.prop("checked","checked");
-        }
+        var badge = $('<span class="badge">').text(div.find(".state-"+state).length);
+        $('<label class="lb-'+state+' btn btn-default">').text(state).append(badge).prepend(checkbox).appendTo(t);
       });
       div.delegate('.thread','dblclick',function(){
-        $(this).data('thread').lines().toggle();
+        var t = $(this);
+        var eb = t.find('.expand-btn');
+        var isFolding = eb.hasClass('glyphicon-chevron-left');
+        if(isFolding){
+          t.data('thread').lines().show();
+          eb.removeClass('glyphicon-chevron-left').addClass('glyphicon-chevron-down');
+        }else{
+          t.data('thread').lines().hide();
+          eb.addClass('glyphicon-chevron-left').removeClass('glyphicon-chevron-down');
+        }
+        return false;
+      }).delegate('.expand-btn','click',function(){
+        $(this).parents('.thread').trigger('dblclick');
         return false;
       });
     }
@@ -297,19 +314,15 @@ function Parser(lines,div){
     }
   };
 }
-function parse(lines,div){
+function parse(lines,div,callback){
   var p = Parser(lines,div);
-  var parseState = $("<div>");
-  div.append(parseState);
   function doParse(){
     for(var i=0;i<1000 && p.hasNext(); i++){
       p.next();
     }
-    parseState.text("parse end "+p.lineNumber()+"/"+p.lines.length+" lines");
+    callback(p.lineNumber(),p.lines.length);
     if(p.hasNext()){
       setTimeout(doParse);
-    }else{
-      parseState.remove();
     }
   }
   doParse();
