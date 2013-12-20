@@ -244,10 +244,10 @@ Checker.prototype.test = function(line){
 function Parser(lines,div){
   var thread = null;
   var threadDumps = [];
-  var i=-1;
+  var lineNumber=-1;
   function threadFinish(){
     if(thread){
-      thread.finish(i);
+      thread.finish(lineNumber);
     }
     thread = null;
   }
@@ -267,7 +267,7 @@ function Parser(lines,div){
     }),
     new Checker(/^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)(?:\s+[a-zA-Z0-9_]+=0x[a-f0-9]+)*\s+([^\[]+)(?:\[|$)/, function(m,line){
       threadFinish();
-      thread = oneThreadDump.newThread(m[2], m[1], m[3], line, i);
+      thread = oneThreadDump.newThread(m[2], m[1], m[3], line, lineNumber);
     }),
     new Checker(/^$/,function(m,line){
       threadFinish();
@@ -275,14 +275,19 @@ function Parser(lines,div){
     new Checker(/^\s+java.lang.Thread.State: ([A-Z_]+)/,function(m,line){
       thread.addState(m[1],line);
     }),
-    new Checker(/^Heap/,function(m,line){
-      threadFinish();
-      next = findThreadDump;
-      oneThreadDump.finish(i);
-      preThreadDump = oneThreadDump;
-      oneThreadDump = null;
+    new Checker(/^JNI global references/,function(m,line){
+      finishThreadDump();
     })
   ];
+  function finishThreadDump(){
+    threadFinish();
+    next = findThreadDump;
+    if(oneThreadDump){
+      oneThreadDump.finish(lineNumber);
+      preThreadDump = oneThreadDump;
+      oneThreadDump = null;
+    }
+  }
   function parseThreadDump(){
     var find = false;
     for(var j=0;j<checkers.length; j++){
@@ -292,12 +297,12 @@ function Parser(lines,div){
       }
     }
     if(find===false){
-      console.log("unexpected line "+i+":"+line);
+      console.log("unexpected line "+lineNumber+":"+line);
     }
   }
   function findThreadDump(){
-    if(i>0 && /^Full thread dump/.test(line) && /^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$/.test(lines[i-1])){
-      oneThreadDump = ThreadDump(preThreadDump, lines[i-1], line, i);
+    if(lineNumber>0 && /^Full thread dump/.test(line) && /^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$/.test(lines[lineNumber-1])){
+      oneThreadDump = ThreadDump(preThreadDump, lines[lineNumber-1], line, lineNumber);
       threadDumps.push(oneThreadDump);
       if(preThreadDump){
         oneThreadDump.div.insertBefore(preThreadDump.div);
@@ -313,26 +318,29 @@ function Parser(lines,div){
     threadDumps:threadDumps,
     lines:lines,
     lineNumber:function(){
-      return i;
+      return lineNumber;
     },
     hasNext:function(){
-      return i<lines.length;
+      return lineNumber<lines.length;
     },
     next:function(){
-      i++;
-      line = lines[i];
+      lineNumber++;
+      line = lines[lineNumber];
       try{
         next();
       }catch(e){
-        console.log("i=",i);
-        console.log("line=",lines[i-2]);
-        console.log("line=",lines[i-1]);
-        console.log("line=",lines[i]);
-        console.log("line=",lines[i+1]);
-        console.log("line=",lines[i+2]);
+        console.log("lineNumber=",lineNumber);
+        console.log("line=",lines[lineNumber-2]);
+        console.log("line=",lines[lineNumber-1]);
+        console.log("line=",lines[lineNumber]);
+        console.log("line=",lines[lineNumber+1]);
+        console.log("line=",lines[lineNumber+2]);
         console.log("thread=",thread);
         throw e;
       }
+    },
+    finish:function(){
+      finishThreadDump();
     }
   };
 }
@@ -342,6 +350,7 @@ function parse(lines,div,callback){
     for(var i=0;i<1000 && p.hasNext(); i++){
       p.next();
     }
+    p.finish();
     callback(p.lineNumber(),p.lines.length, p.threadDumps);
     if(p.hasNext()){
       setTimeout(doParse);
