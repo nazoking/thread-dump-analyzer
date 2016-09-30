@@ -265,7 +265,7 @@ function Parser(lines,div){
         thread.addWaiting(m[2],line);
       }
     }),
-    new Checker(/^"([^"]+?)" (?:daemon )?prio=\d+.* tid=(0x[a-f0-9]+)(?:\s+[a-zA-Z0-9_]+=0x[a-f0-9]+)*\s+([^\[]+)(?:\[|$)/, function(m,line){
+    new Checker(/^"([^"]+?)" (?:#\d+ )?(?:daemon )?(?:os_)?prio=\d+.* tid=(0x[a-f0-9]+)(?:\s+[a-zA-Z0-9_]+=0x[a-f0-9]+)*\s+([^\[]+)(?:\[|$)/, function(m,line){
       threadFinish();
       thread = oneThreadDump.newThread(m[2], m[1], m[3], line, i);
     }),
@@ -275,7 +275,7 @@ function Parser(lines,div){
     new Checker(/^\s+java.lang.Thread.State: ([A-Z_]+)/,function(m,line){
       thread.addState(m[1],line);
     }),
-    new Checker(/^Heap/,function(m,line){
+    new Checker(/^(Heap|\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$)/,function(m,line){
       threadFinish();
       next = findThreadDump;
       oneThreadDump.finish(i);
@@ -285,7 +285,10 @@ function Parser(lines,div){
   ];
   function parseThreadDump(){
     var find = false;
-    for(var j=0;j<checkers.length; j++){
+    if(line === undefined){
+      checkers[checkers.length-1].func([],line);
+      find=true;
+    }else for(var j=0;j<checkers.length; j++){
       if(checkers[j].test(line)){
         find=true;
         break;
